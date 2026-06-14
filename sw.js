@@ -1,4 +1,4 @@
-const CACHE = 'harugirok-v1';
+const CACHE = 'harugirok-v2';
 const ASSETS = [
   './',
   './index.html',
