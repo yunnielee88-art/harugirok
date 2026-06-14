@@ -524,9 +524,84 @@ nav.htabs button.on{
 .q-pct-val{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:16px;font-weight:700;color:var(--ink);}
 .q-stats{font-size:11px;color:var(--ink-soft);line-height:1.7;}
 .q-future{font-size:12px;color:var(--ink-soft);margin-top:4px;}
+
+/* ── 백업 배너 ── */
+.backup-banner{
+  position:fixed;bottom:80px;left:50%;transform:translateX(-50%);
+  z-index:600;
+  background:linear-gradient(135deg,#9B8EC4,#82B3A0);
+  color:#fff;border-radius:20px;
+  display:flex;align-items:center;gap:10px;
+  padding:12px 18px;
+  box-shadow:0 4px 20px rgba(120,100,180,.35);
+  font-size:13px;font-weight:700;
+  cursor:pointer;
+  animation:slideUp .4s ease;
+  white-space:nowrap;
+}
+.backup-banner .bk-close{
+  background:rgba(255,255,255,.25);border:none;color:#fff;
+  border-radius:50%;width:22px;height:22px;font-size:13px;
+  cursor:pointer;display:flex;align-items:center;justify-content:center;
+  flex-shrink:0;padding:0;line-height:1;
+}
+@keyframes slideUp{from{opacity:0;transform:translateX(-50%) translateY(20px);}to{opacity:1;transform:translateX(-50%) translateY(0);}}
+
+/* ── 백업 모달 ── */
+.backup-modal-bg{
+  position:fixed;inset:0;background:rgba(60,50,100,.45);
+  z-index:700;display:flex;align-items:flex-end;justify-content:center;
+  backdrop-filter:blur(4px);
+}
+.backup-modal{
+  background:#fff;border-radius:28px 28px 0 0;
+  padding:28px 24px 40px;width:100%;max-width:560px;
+  display:flex;flex-direction:column;gap:14px;
+}
+.backup-modal h3{
+  font-family:'Gowun Batang',serif;font-size:19px;color:var(--ink);margin:0;
+}
+.backup-modal p{font-size:13px;color:var(--ink-soft);margin:0;line-height:1.7;}
+.backup-btns{display:flex;flex-direction:column;gap:10px;margin-top:4px;}
+.backup-btn-main{
+  background:linear-gradient(135deg,var(--lav),var(--sage));
+  color:#fff;border:none;border-radius:16px;
+  padding:16px;font-size:15px;font-weight:700;
+  cursor:pointer;font-family:'Gothic A1',sans-serif;
+}
+.backup-btn-sub{
+  background:var(--lav-soft);color:var(--lav);border:none;border-radius:16px;
+  padding:14px;font-size:14px;font-weight:700;
+  cursor:pointer;font-family:'Gothic A1',sans-serif;
+}
+.backup-btn-close{
+  background:transparent;color:var(--ink-soft);border:none;
+  font-size:13px;cursor:pointer;padding:6px;
+  font-family:'Gothic A1',sans-serif;
+}
 </style>
 </head>
 <body>
+
+<!-- 백업 배너 -->
+<div class="backup-banner hide" id="backup-banner" onclick="openBackup()">
+  💾 데이터 백업하기
+  <button class="bk-close" onclick="event.stopPropagation();document.getElementById('backup-banner').classList.add('hide')">✕</button>
+</div>
+
+<!-- 백업 모달 -->
+<div class="backup-modal-bg hide" id="backup-modal-bg" onclick="closeBackup()">
+  <div class="backup-modal" onclick="event.stopPropagation()">
+    <h3>💾 데이터 백업 / 복원</h3>
+    <p>앱을 재설치하면 데이터가 사라질 수 있어요.<br>중요한 기록은 미리 백업해두세요!</p>
+    <div class="backup-btns">
+      <button class="backup-btn-main" onclick="fullExport()">📤 전체 백업 (건강일지 + 루틴)</button>
+      <button class="backup-btn-sub" onclick="document.getElementById('full-importer').click()">📥 백업 파일로 복원</button>
+      <input type="file" id="full-importer" accept=".json" style="display:none" onchange="fullImport(this)">
+      <button class="backup-btn-close" onclick="closeBackup()">닫기</button>
+    </div>
+  </div>
+</div>
 
 <!-- ═══════════ 상단 앱 탭바 ═══════════ -->
 <div class="app-tabbar">
@@ -953,6 +1028,66 @@ function hDrawChart(){
     {label:'마음',data:pts.map(e=>e.mood),borderColor:'#7d8b6a',backgroundColor:'rgba(125,139,106,.06)',tension:.35,spanGaps:true,fill:true,pointRadius:3}
   ]},options:{responsive:true,scales:{y:{min:0,max:10,ticks:{stepSize:2}}},plugins:{legend:{labels:{font:{family:'Gothic A1'}}}}}});
 }
+/* ── 전체 백업 / 복원 ── */
+function openBackup(){
+  document.getElementById('backup-banner').classList.add('hide');
+  document.getElementById('backup-modal-bg').classList.remove('hide');
+}
+function closeBackup(){
+  document.getElementById('backup-modal-bg').classList.add('hide');
+}
+function fullExport(){
+  // 루틴 체크 데이터 전체 수집
+  const routineChecks={};
+  for(let i=0;i<localStorage.length;i++){
+    const k=localStorage.key(i);
+    if(k&&k.startsWith('r_'))routineChecks[k]=localStorage.getItem(k);
+  }
+  const payload={
+    app:'harugirok-full',v:1,
+    exportedAt:new Date().toISOString(),
+    health:HDB,
+    routineCats:localStorage.getItem('user_cats'),
+    routineChecks
+  };
+  const blob=new Blob([JSON.stringify(payload,null,2)],{type:'application/json'});
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(blob);
+  a.download=`하루기록_전체백업_${new Date().toISOString().slice(0,10)}.json`;
+  a.click();
+  closeBackup();
+  alert('백업 완료! 파일을 안전한 곳에 보관해주세요 😊');
+}
+function fullImport(input){
+  const file=input.files[0]; if(!file)return;
+  const r=new FileReader();
+  r.onload=()=>{
+    try{
+      const j=JSON.parse(r.result);
+      if(j.app==='harugirok-full'){
+        // 건강일지 복원
+        if(Array.isArray(j.health)){HDB=j.health;hSaveDB();hRenderHistory();}
+        // 루틴 카테고리 복원
+        if(j.routineCats)localStorage.setItem('user_cats',j.routineCats);
+        // 루틴 체크 복원
+        if(j.routineChecks){
+          Object.entries(j.routineChecks).forEach(([k,v])=>localStorage.setItem(k,v));
+        }
+        closeBackup();
+        alert('복원 완료! 앱을 새로고침합니다.');
+        location.reload();
+      } else if(Array.isArray(j.data)){
+        // 구버전 건강일지만 백업한 경우
+        HDB=j.data;hSaveDB();hRenderHistory();
+        closeBackup();
+        alert('건강일지 복원 완료: '+HDB.length+'개');
+      } else { alert('올바른 백업 파일이 아닙니다.'); }
+    }catch{alert('파일을 읽을 수 없습니다.');}
+  };
+  r.readAsText(file);
+  input.value='';
+}
+
 function hExport(){
   const blob=new Blob([JSON.stringify({app:'harugirok',v:2,data:HDB},null,2)],{type:'application/json'});
   const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=`하루기록_${new Date().toISOString().slice(0,10)}.json`; a.click();
@@ -1304,6 +1439,18 @@ function sShowPanel(name,btn){
 hBuildScale('f-dizzy','dizzy'); hBuildScale('f-mood','mood'); hBuildRehab();
 const hh=new Date().getHours(); hSetSession(hh<11?'morning':hh<16?'lunch':'evening');
 rRerenderAll();
+
+// 백업 배너: 3일마다 표시
+(function(){
+  const last=localStorage.getItem('backup_reminded');
+  const now=Date.now();
+  if(!last||now-Number(last)>3*24*60*60*1000){
+    setTimeout(()=>{
+      document.getElementById('backup-banner').classList.remove('hide');
+      localStorage.setItem('backup_reminded',String(now));
+    },2000);
+  }
+})();
 
 /* ════════════════════════════════════════
    서비스워커 등록 (PWA 오프라인 지원)
